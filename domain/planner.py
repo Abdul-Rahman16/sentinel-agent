@@ -13,6 +13,14 @@ TOOLS = {"web_search": web_search, "calculator": calculator}
 
 PLANNER_SYSTEM = """You are a research planning assistant. Given a question, break it into
 2-4 concrete steps using only these tools: web_search (args: query) and calculator (args: expression).
+
+IMPORTANT constraint on calculator: it can ONLY evaluate literal arithmetic with actual numbers
+(e.g. "12722000 * 1.0193"). It has NO memory of other steps and CANNOT use variable names or
+references like "current" or "projected_2026" — those will always fail. Only include a calculator
+step if the question genuinely requires arithmetic on numbers you can state literally in the plan
+itself. If the numbers needed depend on search results you don't have yet, omit the calculator step
+entirely — a separate synthesis step will handle any final arithmetic in prose instead.
+
 Respond ONLY with a JSON array, no other text. Example:
 [{"tool": "web_search", "args": {"query": "..."}}]
 If a tool isn't needed, omit it. Keep the plan short and directly useful for answering the question."""
