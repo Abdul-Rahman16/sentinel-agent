@@ -11,9 +11,9 @@ class Run(Base):
     __tablename__ = "runs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String, nullable=True)  # NULL = anonymous demo run, never listed in history
     question = Column(String, nullable=False)
     status = Column(String, nullable=False, default="planning")
-    # planning, running, awaiting_approval, completed, failed, budget_exceeded
     budget_tokens = Column(Integer, nullable=False, default=20000)
     spent_tokens = Column(Integer, nullable=False, default=0)
     max_steps = Column(Integer, nullable=False, default=10)
@@ -24,6 +24,7 @@ class Run(Base):
 
     __table_args__ = (
         Index("ix_runs_status", "status"),
+        Index("ix_runs_user_id", "user_id"),
     )
 
 
@@ -33,10 +34,10 @@ class Step(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     run_id = Column(UUID(as_uuid=True), ForeignKey("runs.id"), nullable=False)
     step_number = Column(Integer, nullable=False)
-    tool = Column(String, nullable=False)  # e.g. "web_search", "calculator", "planner"
+    tool = Column(String, nullable=False)
     input = Column(JSON, nullable=False, default=dict)
     output = Column(JSON, nullable=True)
-    status = Column(String, nullable=False, default="pending")  # pending, success, failed
+    status = Column(String, nullable=False, default="pending")
     tokens_used = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
@@ -51,6 +52,6 @@ class Approval(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     run_id = Column(UUID(as_uuid=True), ForeignKey("runs.id"), nullable=False)
     action_description = Column(String, nullable=False)
-    decision = Column(String, nullable=True)  # null = pending, "approved", "rejected"
+    decision = Column(String, nullable=True)
     decided_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     gemini_api_key: str = ""
     tavily_api_key: str = ""
+    internal_api_secret: str = ""  # shared secret only the Next.js server knows
     environment: str = "development"
 
 
