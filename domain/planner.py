@@ -21,6 +21,14 @@ REPORT_SYSTEM = """You are a research assistant writing a final report. Given th
 and evidence gathered from tool calls, write a clear, well-cited answer. Reference sources by URL where
 evidence came from web search. If the evidence is insufficient, say so honestly rather than guessing."""
 
+VERIFY_SYSTEM = """You are a fact-checking reviewer. You will be given a draft research report
+and the raw evidence it was based on. Your job is to check every specific factual claim
+(names, dates, numbers, "who currently holds X position") against ONLY the evidence provided —
+never your own background knowledge, since the evidence is what was actually retrieved live.
+If a claim in the draft is NOT directly supported by the evidence, or contradicts it, flag it.
+Respond ONLY with a JSON object: {"issues": ["<specific issue>", ...]}. If there are no issues,
+respond with {"issues": []}."""
+
 
 def make_plan(question: str) -> list[dict]:
     result = call_llm(prompt=f"Question: {question}", system=PLANNER_SYSTEM, max_tokens=512)
@@ -61,8 +69,26 @@ def synthesize_report(question: str, evidence: list[dict]) -> dict:
     return call_llm(
         prompt=f"Original question: {question}\n\nEvidence gathered:\n{evidence_text}\n\nWrite the final report.",
         system=REPORT_SYSTEM,
-        max_tokens=1024,
+        max_tokens=2048,
     )
+
+def verify_report(question: str, evidence: list[dict], draft_report: str) -> list[str]:
+    evidence_text = json.dumps(evidence, indent=2)
+    result = call_llm(
+        prompt=f"Question: {question}\n\nEvidence:\n{evidence_text}\n\nDraft report:\n{draft_report}",
+        system=VERIFY_SYSTEM,
+        max_tokens=512,
+    )
+    text = result["text"].strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.startswith("json"):
+            text = text[4:].strip()
+    try:
+        parsed = json.loads(text)
+        return parsed.get("issues", [])
+    except (json.JSONDecodeError, AttributeError):
+        return []
 
 
 def run_agent(db: Session, run: Run) -> Run:
@@ -83,7 +109,16 @@ def run_agent(db: Session, run: Run) -> Run:
 
         report_result = synthesize_report(run.question, evidence)
         run.spent_tokens += report_result.get("tokens_used", 0)
-        run.final_report = report_result["text"]
+        draft_report = report_result["text"]
+
+        issues = verify_report(run.question, evidence, draft_report)
+        if issues:
+            issues_text = "\n".join(f"- {i}" for i in issues)
+            draft_report += (
+                f"\n\n---\n**⚠ Verification flagged the following unresolved concerns "
+                f"— treat this report with additional caution:**\n{issues_text}"
+            )
+        run.final_report = draft_report
 
         # Any run that produces a report requires human approval before it's
         # considered "published" — this is the actual guardrail, not decoration.

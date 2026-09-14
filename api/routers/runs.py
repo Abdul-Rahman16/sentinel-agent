@@ -30,6 +30,8 @@ def get_run(run_id: str, db: Session = Depends(get_db)):
     run = db.execute(select(Run).where(Run.id == run_id)).scalar_one_or_none()
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
+    if run.status == "failed":
+        run.final_report = None  # rejected/failed runs never expose their draft report
     return run
 
 
